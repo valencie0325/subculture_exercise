@@ -1,17 +1,379 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Recognition Danmaku</title>
-   
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PaperScreen — Manga Zine Flipbook (Demo)</title>
+<style>
+  :root{
+    --paper:#f8f3e8;
+    --ink:#111;
+    --accent:#d8412f;
+    --blue:#2a5fbf;
+    --card-shadow: 0 6px 18px rgba(17,17,17,0.08);
+    --glass: rgba(255,255,255,0.6);
+  }
+  html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Helvetica Neue", Arial; background:var(--paper);}
+  .app{display:grid; grid-template-columns:260px 1fr 320px; gap:18px; padding:20px; height:100vh; box-sizing:border-box;}
+  /* Left Shelf */
+  .shelf{background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.45)); border-radius:12px; padding:14px; box-shadow:var(--card-shadow); overflow:auto;}
+  .shelf h2{margin:6px 0 12px;font-size:16px;color:var(--ink)}
+  .issue{display:flex; gap:10px; align-items:center; padding:8px; border-radius:8px; cursor:pointer;}
+  .issue:hover{background:rgba(0,0,0,0.03)}
+  .thumb{width:48px;height:64px;border-radius:4px; background-size:cover; background-position:center; box-shadow:0 3px 8px rgba(0,0,0,0.06)}
+  .iss-meta{font-size:13px;}
+  .iss-title{font-weight:600;color:var(--ink); margin-bottom:4px}
+  .iss-sub{font-size:12px;color:#555}
+  .controls{display:flex; gap:8px; margin-top:12px}
+  .btn{padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.06); background:white; cursor:pointer; font-size:13px}
+  .btn.ghost{background:transparent}
+  /* Center Flipbook area */
+  .viewer{display:flex; align-items:center; justify-content:center; gap:16px; }
+  .book-frame{width:820px; height:560px; position:relative; perspective:2000px; display:flex; align-items:center; justify-content:center;}
+  .book{
+    width:720px; height:480px; position:relative; transform-style:preserve-3d;
+  }
+  .spread{position:absolute; left:0; top:0; width:100%; height:100%; display:flex; box-sizing:border-box; transform-style:preserve-3d;}
+  .page{
+    width:50%; height:100%; overflow:hidden; position:relative; backface-visibility:hidden;
+    box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    border-radius:4px; background:white; display:flex; align-items:center; justify-content:center;
+    transform-origin:left; transition:transform 700ms cubic-bezier(.2,.9,.2,1);
+  }
+  .page.right{transform-origin:right}
+  .page .content{padding:18px; width:100%; height:100%; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between}
+  .page .panel{flex:1; display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--ink)}
+  /* flipped states */
+  .page.flipped{transform: rotateY(-180deg); z-index:1}
+  .page.right.flipped{transform: rotateY(180deg); z-index:1}
+  /* Page overlays for click areas */
+  .click-area{position:absolute; top:0; bottom:0; width:50%; z-index:20; cursor:pointer}
+  .click-area.left{left:0}
+  .click-area.right{right:0}
+  /* metadata panel */
+  .meta{background:var(--glass); border-radius:12px; padding:16px; box-shadow:var(--card-shadow); overflow:auto; height:100%}
+  .meta h3{margin:0 0 8px; font-size:16px}
+  .meta p{color:#333;font-size:14px; line-height:1.4}
+  .meta .cite{font-size:12px;color:#444;margin-top:12px;background:rgba(0,0,0,0.03);padding:8px;border-radius:8px}
+  .meta .tag{display:inline-block;padding:6px 8px;border-radius:999px;background:white;margin-right:6px;margin-top:8px;font-size:12px}
+  .meta .print{display:flex; gap:8px; margin-top:12px}
+  .small{font-size:12px;color:#666}
+  /* sticky notes */
+  .sticky-area{position:fixed; right:22px; bottom:22px; width:220px; display:flex; flex-direction:column; gap:8px}
+  .sticky{background:linear-gradient(#fff6d8,#fff1b8); padding:10px;border-radius:6px; box-shadow:0 8px 16px rgba(0,0,0,0.08); font-size:13px}
+  /* responsive */
+  @media(max-width:1100px){ .app{grid-template-columns:200px 1fr} .meta{display:none} .book-frame{width:640px} }
+  @media(max-width:720px){
+    .app{grid-template-columns:1fr; padding:12px; grid-auto-rows:auto}
+    .shelf{order:2;height:160px}
+    .viewer{order:1}
+    .sticky-area{right:8px;bottom:8px;width:160px}
+    .book-frame{width:100%; height:80vw}
+    .book{width:90%; height:70%}
+  }
+
+  /* Print mode (simple) */
+  .print-mode .page{box-shadow:none; transform:none !important; border-radius:0}
+  .print-mode body{background:white}
+  @media print{
+    body{background:white!important}
+    .shelf,.meta,.sticky-area,.controls{display:none}
+    .book-frame{width:100%!important;height:auto!important;perspective:none}
+    .page{width:100%;height:auto;display:block;transform:none;box-shadow:none;border:none;border-radius:0}
+    .page .content{padding:8mm}
+  }
+</style>
 </head>
 <body>
-    <p>Morning</p>
-   <img src="images/0-3.jpg">
-   
+<div class="app" role="application" aria-label="PaperScreen demo application">
+  <aside class="shelf" aria-label="Issue Shelf">
+    <h2>Issue Shelf</h2>
+    <div id="issuesList">
+      <!-- JS will render issues -->
+    </div>
+    <div class="controls small" style="margin-top:16px">
+      <button class="btn" id="newIssueBtn" title="Create / Upload (demo)">＋ Create</button>
+      <button class="btn ghost" id="helpBtn" title="About this demo">About</button>
+    </div>
+    <p class="small" style="margin-top:12px">Click an issue to open it in the flipbook. Use arrow keys to navigate.</p>
+  </aside>
 
-   
-    
+  <main class="viewer" aria-live="polite">
+    <div class="book-frame" role="region" aria-label="Flipbook viewer">
+      <div class="book" id="book">
+        <div class="spread" id="spread">
+          <div class="page left" id="pageLeft" aria-hidden="false">
+            <div class="content" id="leftContent">
+              <div class="panel" id="leftPanel"></div>
+              <div class="small" style="text-align:right" id="leftNote"></div>
+            </div>
+          </div>
+
+          <div class="page right" id="pageRight" aria-hidden="false">
+            <div class="content" id="rightContent">
+              <div class="panel" id="rightPanel"></div>
+              <div class="small" id="rightNote"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Click areas -->
+        <div class="click-area left" id="leftClick" aria-hidden="false" role="button" tabindex="0" aria-label="Previous page"></div>
+        <div class="click-area right" id="rightClick" aria-hidden="false" role="button" tabindex="0" aria-label="Next page"></div>
+
+      </div>
+    </div>
+  </main>
+
+  <aside class="meta" aria-label="Issue metadata">
+    <h3 id="issueTitle">No Issue Selected</h3>
+    <p id="issueDesc">Select an issue from the shelf to view pages, citations and download options.</p>
+
+    <div id="tags"></div>
+
+    <div class="print" style="margin-top:12px;">
+      <button class="btn" id="printBtn">Print-It</button>
+      <button class="btn" id="downloadBtn">Download PDF</button>
+    </div>
+
+    <div class="cite" id="citationBox" style="display:none">
+      <strong>Provenance & Citation</strong>
+      <div id="citationText"></div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <p class="small">This demo uses public-domain-like sample panels and inline SVGs. For real projects use clear attribution and transformation notes.</p>
+    </div>
+  </aside>
+</div>
+
+<!-- sticky ephemeral notes -->
+<div class="sticky-area" aria-hidden="false">
+  <div class="sticky">Brookdale Zine Swap — Oct 3, 2025<br><span class="small">Meet at studio 3 — trade cards available.</span></div>
+  <div class="sticky">Call for Submissions: <strong>Doujin Panels #04</strong><br><span class="small">Theme: Memory / Kintsugi</span></div>
+</div>
+
+<script>
+/* ---------------------------
+   Sample "issues" data
+   Each issue is a folder: {id,title,author,desc,tags,pages:[{svg,alt,caption,source}]}
+   Pages are inline SVG data URLs so this demo runs without external images.
+   --------------------------- */
+const issues = [
+  {
+    id:'issue-001',
+    title:'Kintsugi Panels #01',
+    author:'Collective: PaperScreen',
+    desc:'A short 8-page doujinshi exploring diaspora memory. Collage panels, found-text remixes, and ambient notes.',
+    tags:['doujin','manga-influenced','collage','diaspora'],
+    pages: [
+      {svg: makePanelSVG('Kintsugi Panels','cover', 'cover art with lacquer lines'), alt:'cover', caption:'Cover: lacquer and torn paper', source:'Original (author composite)'},
+      {svg: makePanelSVG('Panel 1','A child in a boarding house','narrative panel'), alt:'panel1', caption:'Panel 1 — opening', source:'Found-text transform (source: public domain)'},
+      {svg: makePanelSVG('Panel 2','Playground — afternoon','action panel'), alt:'panel2', caption:'Panel 2 — memory fragment', source:'Scan: contributor photo'},
+      {svg: makePanelSVG('Panel 3','Kitchen table','intimate scene'), alt:'panel3', caption:'Panel 3 — conversation', source:'Remixed text (attributed)'},
+      {svg: makePanelSVG('Panel 4','Train window — rain','motion blur'), alt:'panel4', caption:'Panel 4 — travel memory', source:'Audio-visual capture (author)'},
+      {svg: makePanelSVG('Panel 5','Kintsugi detail','close-up'), alt:'panel5', caption:'Detail: broken pot mended', source:'Found image, transformed'},
+      {svg: makePanelSVG('Artist Note','about process','text page'), alt:'note', caption:'Artist note: process & rights', source:'Contributor text'},
+      {svg: makePanelSVG('Back Cover','thanks','credits'), alt:'back', caption:'Credits & citations', source:'See metadata'}
+    ]
+  },
+  {
+    id:'issue-002',
+    title:'Mono Tones — Sketchbook',
+    author:'Junxia Wang (demo)',
+    desc:'A micro-zine of black-and-white study panels and halftone experiments.',
+    tags:['sketch','halftone','practice'],
+    pages: [
+      {svg: makePanelSVG('Mono Tones','cover','halftone cover'), alt:'cover2', caption:'Cover', source:'Author scan'},
+      {svg: makePanelSVG('Study A','gesture drawing','sketch'), alt:'s1', caption:'Gesture studies', source:'Author'},
+      {svg: makePanelSVG('Study B','facial expressions','studies'), alt:'s2', caption:'Expression sketches', source:'Author'},
+      {svg: makePanelSVG('Back','credits','end'), alt:'back2', caption:'Credits', source:'Author'}
+    ]
+  }
+];
+
+// Simple function to create inline SVG data URLs with text placeholders
+function makePanelSVG(title, subtitle='', note=''){
+  const svg = `
+  <svg xmlns='http://www.w3.org/2000/svg' width='1200' height='1600' viewBox='0 0 1200 1600'>
+    <defs>
+      <linearGradient id='g' x1='0' x2='1'>
+        <stop offset='0' stop-color='#ffffff'/>
+        <stop offset='1' stop-color='#f3f0ed'/>
+      </linearGradient>
+    </defs>
+    <rect width='100%' height='100%' fill='url(#g)'/>
+    <g transform='translate(60,60)'>
+      <rect x='0' y='0' width='1080' height='1480' rx='8' ry='8' fill='white' stroke='#ddd' stroke-width='2'/>
+      <g font-family='"Noto Sans JP", "Hiragino Kaku Gothic Pro", Arial'>
+        <text x='40' y='120' font-size='56' fill='#111' font-weight='700'>${escapeXml(title)}</text>
+        <text x='40' y='180' font-size='28' fill='#444'>${escapeXml(subtitle)}</text>
+        <rect x='40' y='220' width='1000' height='860' fill='#fafafa' stroke='#eee' stroke-width='1' />
+        <text x='60' y='280' font-size='20' fill='#333' >${escapeXml(note)}</text>
+        <text x='40' y='1120' font-size='18' fill='#666'>${escapeXml('— excerpt / placeholder panel —')}</text>
+        <text x='40' y='1360' font-size='14' fill='#999'>${escapeXml('panel size: 1200×1600 | printable')}</text>
+      </g>
+    </g>
+  </svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+function escapeXml(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+
+/* ---------------------------
+   Render shelf
+   --------------------------- */
+const issuesList = document.getElementById('issuesList');
+issues.forEach(issue => {
+  const el = document.createElement('div');
+  el.className='issue';
+  el.tabIndex = 0;
+  el.setAttribute('role','button');
+  el.innerHTML = `
+    <div class="thumb" style="background-image:url('${issue.pages[0].svg}')"></div>
+    <div class="iss-meta">
+      <div class="iss-title">${issue.title}</div>
+      <div class="iss-sub">${issue.author}</div>
+    </div>
+  `;
+  el.addEventListener('click', ()=> openIssue(issue.id));
+  el.addEventListener('keydown', (e)=>{ if(e.key==='Enter') openIssue(issue.id) });
+  issuesList.appendChild(el);
+});
+
+/* ---------------------------
+   Flipbook logic
+   --------------------------- */
+let currentIssue = null;
+let currentIndex = 0; // page index (0-based)
+const leftPanel = document.getElementById('leftPanel');
+const rightPanel = document.getElementById('rightPanel');
+const leftNote = document.getElementById('leftNote');
+const rightNote = document.getElementById('rightNote');
+const pageLeft = document.getElementById('pageLeft');
+const pageRight = document.getElementById('pageRight');
+const leftClick = document.getElementById('leftClick');
+const rightClick = document.getElementById('rightClick');
+const issueTitle = document.getElementById('issueTitle');
+const issueDesc = document.getElementById('issueDesc');
+const tagsDiv = document.getElementById('tags');
+const citationBox = document.getElementById('citationBox');
+const citationText = document.getElementById('citationText');
+
+function openIssue(id){
+  currentIssue = issues.find(i=>i.id===id);
+  currentIndex = 0;
+  renderMetadata();
+  renderSpread();
+  document.querySelectorAll('.issue').forEach(n=>n.style.opacity = '1');
+  // mark selected visually (simple)
+  // find issue element and dim others
+  Array.from(issuesList.children).forEach(child=>{
+    child.style.opacity = child.querySelector('.iss-title').textContent === currentIssue.title ? '1' : '0.9';
+  });
+}
+
+function renderMetadata(){
+  if(!currentIssue) return;
+  issueTitle.textContent = currentIssue.title;
+  issueDesc.textContent = currentIssue.desc;
+  tagsDiv.innerHTML = '';
+  currentIssue.tags.forEach(t=>{
+    const s = document.createElement('span'); s.className='tag'; s.textContent = t; tagsDiv.appendChild(s);
+  });
+  citationBox.style.display='block';
+  citationText.innerHTML = `<div class="small"><strong>Author:</strong> ${currentIssue.author}</div><div class="small" style="margin-top:6px"><strong>Folder:</strong> /issues/${currentIssue.id}/</div>`;
+}
+
+function renderSpread(){
+  if(!currentIssue) return;
+  // show two pages: left = currentIndex, right = currentIndex+1
+  const left = currentIssue.pages[currentIndex] || blankPage();
+  const right = currentIssue.pages[currentIndex+1] || blankPage();
+  leftPanel.innerHTML = `<img src="${left.svg}" alt="${escapeHtml(left.alt||'page')}" style="width:100%;height:100%;object-fit:contain">`;
+  rightPanel.innerHTML = `<img src="${right.svg}" alt="${escapeHtml(right.alt||'page')}" style="width:100%;height:100%;object-fit:contain">`;
+  leftNote.textContent = left.caption || '';
+  rightNote.textContent = right.caption || '';
+  // reset flip state
+  pageLeft.classList.remove('flipped');
+  pageRight.classList.remove('flipped');
+  updateCitation(left, right);
+}
+
+function blankPage(){ return {svg: makePanelSVG('','(blank)',''), alt:'blank', caption:'', source:''}; }
+
+function updateCitation(left, right){
+  citationText.innerHTML = `
+    <div class="small"><strong>Left:</strong> ${left.source||'—'}</div>
+    <div class="small"><strong>Right:</strong> ${right.source||'—'}</div>
+  `;
+}
+
+/* Page turn animations */
+let isAnimating = false;
+function turnNext(){
+  if(!currentIssue) return;
+  if(currentIndex+2 >= currentIssue.pages.length) return; // end
+  if(isAnimating) return;
+  isAnimating = true;
+  // animate left page flipping away (simulate right page turning)
+  pageRight.classList.add('flipped');
+  setTimeout(()=>{
+    currentIndex += 2;
+    renderSpread();
+    isAnimating = false;
+  }, 700);
+}
+function turnPrev(){
+  if(!currentIssue) return;
+  if(currentIndex <= 0) return;
+  if(isAnimating) return;
+  isAnimating = true;
+  pageLeft.classList.add('flipped');
+  setTimeout(()=>{
+    currentIndex -= 2;
+    if(currentIndex < 0) currentIndex = 0;
+    renderSpread();
+    isAnimating = false;
+  }, 700);
+}
+
+/* Click handlers */
+rightClick.addEventListener('click', ()=> turnNext());
+leftClick.addEventListener('click', ()=> turnPrev());
+rightClick.addEventListener('keydown', (e)=>{ if(e.key==='Enter') turnNext();});
+leftClick.addEventListener('keydown', (e)=>{ if(e.key==='Enter') turnPrev();});
+
+/* Keyboard navigation */
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight') turnNext();
+  if(e.key === 'ArrowLeft') turnPrev();
+});
+
+/* Print-It / Download (stubs) */
+document.getElementById('printBtn').addEventListener('click', ()=>{
+  document.body.classList.add('print-mode');
+  window.print();
+  setTimeout(()=> document.body.classList.remove('print-mode'), 500);
+});
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  alert('Download PDF: In a production site, pages would be rendered server-side or via client PDF library (html2canvas + jsPDF). This demo is a visual prototype.');
+});
+
+/* New issue / help actions (demo stubs) */
+document.getElementById('newIssueBtn').addEventListener('click', ()=>{
+  alert('Create / Upload: this demo stub accepts images and metadata. In a full app, an upload form + citation fields would be here.');
+});
+document.getElementById('helpBtn').addEventListener('click', ()=>{
+  alert('PaperScreen demo — Flipbook viewer & shelf.\nIdeas: Add server storage, PDF export, collage sandbox, ephemeral sticky notes with timers.');
+});
+
+/* Utilities */
+function escapeHtml(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+/* Open first issue by default */
+openIssue(issues[0].id);
+
+</script>
 </body>
 </html>
