@@ -1,46 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
+<section class="bowl">
+  <svg class="crack" viewBox="0 0 400 400">
+    <path d="M50 100 Q200 50 350 300" class="gold-line"/>
+  </svg>
+  <div class="fragment" data-story="01">
+    <p>“This crack taught me how to slow down.”</p>
+  </div>
+</section>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>subculture_excercise</title>
-</head>
-
-<body>
-    <!-- Content goes here -->
-    <h1 class="centered-title">Joined with gold</h1>
-    <img src="images/b.png.webp" class="responsive-image" alt="Description">
-    <p>In a world obsessed with perfection, there exists an ancient Japanese art form that celebrates the beauty of imperfection and embraces the concept of wabi-sabi – the acceptance of transience and imperfection. This art form is known as ???, and its philosophy extends far beyond mere craftsmanship, offering profound insights into the human experience and the nature of beauty itself.
-</p>
-
-
-
-</body>
-
-</html>
 <style>
-    .responsive-image {
-        width: 50%; /* Takes 50% of the parent container's width */
-    }
-    .centered-title {
-        text-align: center;
-        text-shadow: 1px 1px 8px rgba(0, 0, 0, 0.5);
-    }
-     body {
-        background-color: lightyellow;
-    }
-    p{
-        font-family: futura;
-        font-size: 18px;
-        font-weight: 400px;
-        font-style: italic;
-    }
-    h1{
-        font-family:futura;
-        font-size: 36px;
-        font-weight: 1000;
-    }
-
+.bowl {
+  position: relative;
+  background: #d2ccb4;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.gold-line {
+  fill: none;
+  stroke: #d4af37;
+  stroke-width: 30;
+  stroke-dasharray: 500;
+  stroke-dashoffset: 500;
+  animation: repair 5s ease forwards;
+}
+@keyframes repair {
+  to { stroke-dashoffset: 0; }
+}
+.fragment {
+  position: absolute;
+  color: #255;
+  font-family: 'Noto Serif JP', serif;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+.bowl:hover .fragment { opacity: 1; }
 </style>
-

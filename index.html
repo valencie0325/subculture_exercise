@@ -1,41 +1,4 @@
-<section class="bowl">
-  <svg class="crack" viewBox="0 0 400 400">
-    <path d="M50 100 Q200 50 350 300" class="gold-line"/>
-  </svg>
-  <div class="fragment" data-story="01">
-    <p>“This crack taught me how to slow down.”</p>
-  </div>
-</section>
 
-<style>
-.bowl {
-  position: relative;
-  background: #d2ccb4;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.gold-line {
-  fill: none;
-  stroke: #d4af37;
-  stroke-width: 30;
-  stroke-dasharray: 500;
-  stroke-dashoffset: 500;
-  animation: repair 5s ease forwards;
-}
-@keyframes repair {
-  to { stroke-dashoffset: 0; }
-}
-.fragment {
-  position: absolute;
-  color: #255;
-  font-family: 'Noto Serif JP', serif;
-  opacity: 0;
-  transition: opacity 0.5s;
-}
-.bowl:hover .fragment { opacity: 1; }
-</style>
 
 
 <!DOCTYPE html>
